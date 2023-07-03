@@ -99,13 +99,13 @@ python split_node_emb.py --dataset mag --emb-file ckpts/ComplEx_mag_0/mag_ComplE
   Under this root folder, run
 
   ```bash
-  python -m seq_hgnn.train_amp --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --logsubfix vanilla --epochs 200 --workers 8 --device 0
+  python -m seq_hgnn.train --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --logsubfix vanilla --epochs 200 --workers 8 --device 0 --amp --off-wandb
   ```
 
 - Seq-HGNN + Label Propagation
 
   ```bash
-  python -m seq_hgnn.train_lp --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --logsubfix lp --epochs 200 --workers 8 --device 0
+  python -m seq_hgnn.train_lp --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --logsubfix lp --epochs 200 --workers 8 --device 0 --amp --off-wandb
   ```
 
   
