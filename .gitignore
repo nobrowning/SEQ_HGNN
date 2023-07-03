@@ -1,0 +1,15 @@
+__pycache__/
+/wandb/
+/.vscode/
+/dataset/*
+.ipynb_checkpoints/
+/data/ogbn_mag/
+/data/complex_nars/ckpts/
+/data/complex_nars/train_triplets_mag
+
+*.log
+*.bin
+*.zip
+*.pt
+*.json
+*.tsv

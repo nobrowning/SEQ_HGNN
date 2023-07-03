@@ -3,15 +3,16 @@ from dgl.data.utils import load_graphs
 import torch
 import os
 from torch_geometric.data import InMemoryDataset
-from torch_geometric.datasets import OGB_MAG, IMDB
+from torch_geometric.datasets import OGB_MAG
 import torch_geometric.transforms as T
+from ogb.nodeproppred import DglNodePropPredDataset
 import pickle
 
 
 def load_data(dataset_name='ogbn-mag-complex', target_node='paper', cls_level=3, preprocess=None):
     transform = T.ToUndirected(merge=True)
     if dataset_name == 'ogbn-mag':
-        dataset = OGB_MAG('D:\\Data\\graph\\MAG', preprocess='metapath2vec', transform=transform)
+        dataset = OGB_MAG('dataset/OGB_MAG', preprocess='metapath2vec', transform=transform)
         targe_node_type = 'paper'
         num_classes = dataset.num_classes
         threshold = 0.5
@@ -22,34 +23,11 @@ def load_data(dataset_name='ogbn-mag-complex', target_node='paper', cls_level=3,
         num_classes = dataset.num_classes
         threshold = 0.5
         label_name = 'y'
-    elif dataset_name == 'ogbn-mag-own':
-        dataset = MAGDataset('dataset/OGB_MAG/')
+    elif dataset_name == 'ogbn-mag-complex-multi':
+        dataset = MAGComplexDatasetMulti('dataset/OGB_MAG_COMPLEX_MULTI/')
         targe_node_type = 'paper'
         num_classes = dataset.num_classes
         threshold = 0.5
-        label_name = 'y'
-    elif dataset_name == 'ogbn-mag-multi':
-        dataset = MAGDatasetMulti('dataset/OGB_MAG/')
-        targe_node_type = 'paper'
-        num_classes = dataset.num_classes
-        threshold = 0.5
-        label_name = 'y'
-    elif dataset_name == 'oag-venue':
-        dataset = OAGDataset('dataset/OAG_VENUE/')
-        targe_node_type = 'paper'
-        num_classes = dataset.num_classes
-        threshold = 0.9
-        label_name = 'y'
-    elif dataset_name == 'oag-venue-multi':
-        dataset = OAGDatasetMulti('dataset/OAG_VENUE/')
-        targe_node_type = 'paper'
-        num_classes = dataset.num_classes
-        threshold = 0.9
-        label_name = 'y'
-    elif dataset_name == 'imdb':
-        dataset = IMDB('/home/xxx/pyg_data/IMDB', transform=transform)
-        targe_node_type = 'movie'
-        num_classes = 3
         label_name = 'y'
     elif dataset_name == 'hgb-acm':
         targe_node_type = 'P'
@@ -129,15 +107,12 @@ class MAGDataset(InMemoryDataset):
             data[etype].edge_index = edge_idx
         torch.save(self.collate([data]), self.processed_paths[0])
 
+
 class MAGComplexDataset(InMemoryDataset):
-    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, embed_size=256, transform=None, pre_transform=None, pre_filter=None):
+        self.embed_size = embed_size
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
-
-    @property
-    def raw_file_names(self):
-        return [os.path.join(self.root, 'OGB_MAG.pkl'), 
-                os.path.join(self.root, 'OGB_MAG_split_idx.pkl')]
     
     @property
     def processed_dir(self) -> str:
@@ -149,17 +124,37 @@ class MAGComplexDataset(InMemoryDataset):
     
     @property
     def processed_file_names(self):
-        return 'mag.pt'
+        return 'mag_complex.pt'
 
 
     def process(self):
-        glist, label_dict = load_graphs(self.raw_file_names[0])
-        split = torch.load(self.raw_file_names[1])
-        dgl_g = glist[0]
+        
+        dataset = DglNodePropPredDataset(
+            name="ogbn-mag", root="data"
+        )
+        dgl_g, label_dict = dataset[0]
+        split = dataset.get_idx_split()
         data = HeteroData()
         
         for ntype in dgl_g.ntypes:
-            data[ntype].x = dgl_g.nodes[ntype].data['feat']
+            # complex_emb = torch.load('data/complex_nars/{}.pt'.format(ntype)).float() # ../SeHGNNv1/
+            # if 'feat' in dgl_g.nodes[ntype].data.keys():
+            #     feat = dgl_g.nodes[ntype].data['feat']
+            #     data[ntype].x = torch.cat((feat, complex_emb), dim=1)
+            # else:
+            #     data[ntype].x = complex_emb
+            
+            
+            if 'feat' in dgl_g.nodes[ntype].data.keys():
+                feat = dgl_g.nodes[ntype].data['feat']
+            else:
+                feat = torch.load('data/complex_nars/{}.pt'.format(ntype)).float() # ../SeHGNNv1/
+            
+            # if feat.size(-1) != self.embed_size:
+            #     rand_weight = torch.Tensor(feat.size(-1), self.embed_size).uniform_(-0.5, 0.5)
+            #     feat = feat @ rand_weight
+            data[ntype].x = feat
+            
         data['paper'].year = dgl_g.nodes['paper'].data['year'].reshape(-1)
         data['paper'].y = label_dict['paper'].reshape(-1)
         
@@ -184,19 +179,14 @@ class MAGComplexDataset(InMemoryDataset):
         torch.save(self.collate([data]), self.processed_paths[0])
 
 
-class MAGDatasetMulti(InMemoryDataset):
+class MAGComplexDatasetMulti(InMemoryDataset):
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
-
-    @property
-    def raw_file_names(self):
-        return [os.path.join(self.root, 'OGB_MAG.pkl'), 
-                os.path.join(self.root, 'OGB_MAG_split_idx.pkl')]
     
     @property
     def processed_dir(self) -> str:
-        return os.path.join(self.root, 'own_mag_multi', 'processed')
+        return os.path.join(self.root, 'mag_complex', 'processed')
     
     @property
     def num_classes(self) -> int:
@@ -204,17 +194,26 @@ class MAGDatasetMulti(InMemoryDataset):
     
     @property
     def processed_file_names(self):
-        return 'mag.pt'
+        return 'mag_complex.pt'
 
 
     def process(self):
-        glist, label_dict = load_graphs("dataset/OGB_MAG/OGB_MAG.pkl")
-        split = torch.load('dataset/OGB_MAG/OGB_MAG_split_idx.pkl')
-        dgl_g = glist[0]
+        
+        dataset = DglNodePropPredDataset(
+            name="ogbn-mag", root="data"
+        )
+        dgl_g, label_dict = dataset[0]
+        split = dataset.get_idx_split()
         data = HeteroData()
         
         for ntype in dgl_g.ntypes:
-            data[ntype].x = dgl_g.nodes[ntype].data['feat'].reshape(dgl_g.num_nodes(ntype), -1, 128)
+            complex_emb = torch.load('data/complex_nars/{}.pt'.format(ntype)).float() # ../SeHGNNv1/
+            if 'feat' in dgl_g.nodes[ntype].data.keys():
+                feat = dgl_g.nodes[ntype].data['feat']
+                data[ntype].x = complex_emb
+                data[ntype].x1 = feat
+            else:
+                data[ntype].x = complex_emb
         data['paper'].year = dgl_g.nodes['paper'].data['year'].reshape(-1)
         data['paper'].y = label_dict['paper'].reshape(-1)
         
@@ -234,155 +233,8 @@ class MAGDatasetMulti(InMemoryDataset):
             u, v = dgl_g[etype].edges()
             edge_idx = torch.vstack((u, v))
             data[etype].edge_index = edge_idx
-        torch.save(self.collate([data]), self.processed_paths[0])
-
-
-class OAGDataset(InMemoryDataset):
-    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
-        super().__init__(root, transform, pre_transform, pre_filter)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-
-    @property
-    def raw_file_names(self):
-        return [os.path.join(self.root, 'graph.pkl')]
-    
-    @property
-    def processed_dir(self) -> str:
-        return os.path.join(self.root, 'oag_venue', 'processed')
-    
-    @property
-    def num_classes(self) -> int:
-        return int(self.data['paper'].y.max()) + 1
-    
-    @property
-    def processed_file_names(self):
-        return 'oag_venue.pt'
-
-
-    def process(self):
-        glist, _ = load_graphs(self.raw_file_names[0])
-        dgl_g = glist[0]
-        data = HeteroData()
-
-        for ntype in dgl_g.ntypes:
-            data[ntype].x = dgl_g.nodes[ntype].data['feat']
-        data['paper'].year = dgl_g.nodes['paper'].data['year'].reshape(-1)
-        data['paper'].y = dgl_g.nodes['paper'].data['label'].reshape(-1)
-
-
-        data['paper'].train_mask = dgl_g.nodes['paper'].data['train_mask'].bool()
-        data['paper'].val_mask = dgl_g.nodes['paper'].data['val_mask'].bool()
-        data['paper'].test_mask = dgl_g.nodes['paper'].data['test_mask'].bool()
-
-        for etype in dgl_g.canonical_etypes:
-            u, v = dgl_g[etype].edges()
-            edge_idx = torch.vstack((u, v))
-            data[etype].edge_index = edge_idx
-        torch.save(self.collate([data]), self.processed_paths[0])
-
-
-class OAGDatasetMulti(InMemoryDataset):
-    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
-        super().__init__(root, transform, pre_transform, pre_filter)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-
-    @property
-    def raw_file_names(self):
-        return [os.path.join(self.root, 'graph.pkl')]
-    
-    @property
-    def processed_dir(self) -> str:
-        return os.path.join(self.root, 'oag_venue_multi', 'processed')
-    
-    @property
-    def num_classes(self) -> int:
-        return int(self.data['paper'].y.max()) + 1
-    
-    @property
-    def processed_file_names(self):
-        return 'oag_venue.pt'
-
-
-    def process(self):
-        glist, _ = load_graphs(self.raw_file_names[0])
-        dgl_g = glist[0]
-        data = HeteroData()
-
-        for ntype in dgl_g.ntypes:
-            data[ntype].x = dgl_g.nodes[ntype].data['feat'].reshape(dgl_g.num_nodes(ntype), -1, 128)
-        data['paper'].year = dgl_g.nodes['paper'].data['year'].reshape(-1)
-        data['paper'].y = dgl_g.nodes['paper'].data['label'].reshape(-1)
-
-
-        data['paper'].train_mask = dgl_g.nodes['paper'].data['train_mask'].bool()
-        data['paper'].val_mask = dgl_g.nodes['paper'].data['val_mask'].bool()
-        data['paper'].test_mask = dgl_g.nodes['paper'].data['test_mask'].bool()
-
-        for etype in dgl_g.canonical_etypes:
-            u, v = dgl_g[etype].edges()
-            edge_idx = torch.vstack((u, v))
-            data[etype].edge_index = edge_idx
-        torch.save(self.collate([data]), self.processed_paths[0])
-
-
-class RecruitDataset(InMemoryDataset):
-    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None,
-                cls_level=2, target_node='jd'):
-        super().__init__(root, transform, pre_transform, pre_filter)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-        self.cls_level = cls_level
-        self.target_node = target_node
-
-    @property
-    def raw_file_names(self):
-        return [os.path.join(self.root, 'hetero_graph2.bin')]
-    
-    @property
-    def processed_dir(self) -> str:
-        return os.path.join(self.root, 'recruit_pyg', 'processed')
-    
-    @property
-    def num_classes(self) -> int:
-        return int(self.data[self.target_node]['y{}'.format(self.cls_level)].max()) + 1
-    
-    @property
-    def neg_resume_dict(self) -> dict:
-        path = os.path.join(self.root, 'neg_resume_dict.pkl')
-        with open(path, 'rb') as f:
-            neg_resume_dict = pickle.load(f)
-        return neg_resume_dict
-    
-    @property
-    def processed_file_names(self):
-        return 'recruit.pt'
-
-
-    def process(self):
-        glist, _ = load_graphs(self.raw_file_names[0])
-        dgl_g = glist[0]
-        data = HeteroData()
-
-        for ntype in dgl_g.ntypes:
-            for feat_name in dgl_g.nodes[ntype].data.keys():
-                if feat_name == 'feat':
-                    pyg_feat_name = 'x'
-                else:
-                    pyg_feat_name = feat_name
-                feat = dgl_g.nodes[ntype].data[feat_name]
-                if 'mask' in feat_name:
-                    feat = feat.bool()
-                data[ntype][pyg_feat_name] = feat
-
-        for etype in dgl_g.canonical_etypes:
-            u, v = dgl_g[etype].edges()
-            edge_idx = torch.vstack((u, v))
-            data[etype].edge_index = edge_idx
-
-            for edata_key in dgl_g[etype].edata.keys():
-                feat = dgl_g[etype].edata[edata_key]
-                if 'mask' in edata_key:
-                    feat = feat.bool()
-                data[etype][edata_key] = feat
+        transform = T.ToUndirected(merge=True)
+        data = transform(data)
         torch.save(self.collate([data]), self.processed_paths[0])
 
 

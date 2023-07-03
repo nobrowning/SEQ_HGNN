@@ -1,1 +1,1 @@
-from .pyg_dataset import RecruitDataset, MAGDataset, MAGDatasetMulti
+from .pyg_dataset import load_data

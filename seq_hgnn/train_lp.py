@@ -8,7 +8,7 @@ from torch_geometric.loader import HGTLoader
 from torch_geometric.nn import Linear
 from torch_geometric.seed import seed_everything
 from torch_geometric.nn.inits import reset
-from seq_hgnn.model import SeqHGNN
+from seq_hgnn.model import SeqHGNN_LP
 from torchmetrics.functional import f1_score, accuracy
 import wandb
 import warnings
@@ -28,11 +28,13 @@ def train():
         batch = next(data_iter)
         batch = batch.to(device, 'edge_index')
         batch_size = batch[targe_node_type].batch_size
+        batch_train_mask = batch[targe_node_type]['train_mask']
+        batch_y = batch[targe_node_type][label_name].long()
         
         optimizer.zero_grad()
         if scalar is not None:
             with torch.cuda.amp.autocast():
-                logist = model(batch.x_dict, batch.edge_index_dict)
+                logist = model(batch.x_dict, batch.edge_index_dict, batch_y, batch_train_mask, batch_size)
                 loss = F.cross_entropy(logist[:batch_size], batch[targe_node_type].y[:batch_size])
             scalar.scale(loss).backward()
             scalar.unscale_(optimizer)
@@ -41,7 +43,7 @@ def train():
             scalar.update()
             lr_scheduler.step()
         else:
-            logist = model(batch.x_dict, batch.edge_index_dict)
+            logist = model(batch.x_dict, batch.edge_index_dict, batch_y, batch_train_mask, batch_size)
             loss = F.cross_entropy(logist[:batch_size], batch[targe_node_type].y[:batch_size])
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -88,7 +90,11 @@ def test(loader):
     for batch in tqdm(loader, dynamic_ncols=True):
         batch = batch.to(device, 'edge_index')
         batch_size = batch[targe_node_type].batch_size
-        out = model(batch.x_dict, batch.edge_index_dict)[:batch_size]
+        
+        batch_train_mask = batch[targe_node_type]['train_mask']
+        batch_y = batch[targe_node_type][label_name].long()
+        
+        out = model(batch.x_dict, batch.edge_index_dict, batch_y, batch_train_mask, batch_size)[:batch_size]
         pred = out.argmax(dim=-1)
         
         pred_list.append(pred)
@@ -104,11 +110,14 @@ def init_params():
     # Initialize lazy parameters via forwarding a single batch to the model:
     batch = next(iter(train_loader))
     batch = batch.to(device, 'edge_index')
-    model(batch.x_dict, batch.edge_index_dict)
+    batch_size = batch[targe_node_type].batch_size
+    batch_train_mask = batch[targe_node_type]['train_mask']
+    batch_y = batch[targe_node_type][label_name].long()
+    model(batch.x_dict, batch.edge_index_dict, batch_y, batch_train_mask, batch_size)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='train SeqHGNN')
+    parser = argparse.ArgumentParser(description='train SeqHGNN+LP')
     parser.add_argument('--seed', type=int, default=42, help='random seed')
     parser.add_argument('--device', type=int, default=0, help='gpu device')
     parser.add_argument('--dataset', choices=['ogbn-mag', 'ogbn-mag-own', 'ogbn-mag-multi', 'ogbn-mag-complex', 'ogbn-mag-complex2', 'oag-field', 'oag-venue', 'oag-venue-multi', 'recruit', 'dblp', 'acm', 'imdb'], default='ogbn-mag', help='dataset name')
@@ -165,7 +174,7 @@ if __name__ == '__main__':
                              **dl_kwargs)
     val_loader = HGTLoader(data, input_nodes=val_input_nodes, **dl_kwargs)
     test_loader = HGTLoader(data, input_nodes=test_input_nodes, **dl_kwargs)
-    model = SeqHGNN(graph_meta=data.metadata(), targe_node_type=targe_node_type, hidden_channels=args.num_hidden, out_channels=num_classes, num_heads=args.num_heads, num_layers=args.num_layers, dropout=args.dropout).to(device)
+    model = SeqHGNN_LP(graph_meta=data.metadata(), targe_node_type=targe_node_type, hidden_channels=args.num_hidden, out_channels=num_classes, num_heads=args.num_heads, num_layers=args.num_layers, dropout=args.dropout).to(device)
     
     init_params()  # Initialize parameters.
     wandb.watch(model)
