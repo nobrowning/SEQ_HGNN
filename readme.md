@@ -111,7 +111,7 @@ python split_node_emb.py --dataset mag --emb-file ckpts/ComplEx_mag_0/mag_ComplE
 - Seq-HGNN + Label Propagation + Multi-Stage Training
 
   ```bash
-  python -m seq_hgnn.train_lp_ms --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --amp --logsubfix ms --save-model --stage 200 75 75 75 75 --ct 0.55 --device 0
+  python -m seq_hgnn.train_lp_ms --lr 0.0005 --num-hidden 512 --num-layers 2 --batch-size 256 --n-batch 250 --dropout 0.5 --num-samples 1800 --dataset ogbn-mag-complex --amp --logsubfix ms --save-model --stage 200 75 75 75 75 --ct 0.55 --device 0 --off-wandb
   ```
   
 
