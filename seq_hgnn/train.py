@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
     dl_kwargs = {'batch_size': args.batch_size, 'num_workers': args.workers,
                'num_samples': [args.num_samples] * (args.num_layers),
-              'persistent_workers': True, 'pin_memory': True}
+              'persistent_workers': True if args.workers > 0 else False, 'pin_memory': True}
     if args.num_samples is None:
         args.num_samples = 6*args.batch_size
     num_samples = []

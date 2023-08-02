@@ -92,7 +92,7 @@ class TrainDataset(object):
         EdgeSampler = getattr(dgl.contrib.sampling, 'EdgeSampler')
         assert batch_size % neg_sample_size == 0, 'batch_size should be divisible by B'
         return EdgeSampler(self.g,
-                           seed_edges=F.tensor(self.edge_parts[rank]),
+                           seed_edges=F.tensor(self.edge_parts[rank]).long(),
                            batch_size=batch_size,
                            neg_sample_size=int(neg_sample_size/neg_chunk_size),
                            chunk_size=neg_chunk_size,

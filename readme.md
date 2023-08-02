@@ -6,6 +6,8 @@
 
 ## Requirements
 
+System: Linux x86_64, Nvidia GPU (>=8GB GPU memory).
+
 We recommend employing Conda to install the runtime environment.
 
 - cuda==11.* (In my case, cuda==11.7)
@@ -39,7 +41,7 @@ We recommend employing Conda to install the runtime environment.
 - dglke==0.1.0 (install from source)
 
   ```bash
-  pip install git+https://github.com/awslabs/dgl-ke.git#subdirectory=python
+  pip install git+https://github.com/awslabs/dgl-ke.git@43875a57a721d62396d05235226b13e6c2db1a2a#subdirectory=python
   ```
 
 - ogb

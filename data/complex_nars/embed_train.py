@@ -88,7 +88,7 @@ def main():
 
     init_time_start = time.time()
     # load dataset and samplers
-    dataset = get_dataset(args.data_path, args.dataset, args.format, args.data_files)
+    dataset = get_dataset(args.data_path, args.dataset, args.format, files=args.data_files)
 
     if args.neg_sample_size_eval < 0:
         args.neg_sample_size_eval = dataset.n_entities
@@ -248,7 +248,8 @@ def main():
                                                             rank=0, ranks=1)
 
     # load model
-    model = load_model(logger, args, dataset.n_entities, dataset.n_relations)
+    args.has_edge_importance = False
+    model = load_model(args, dataset.n_entities, dataset.n_relations)
     if args.num_proc > 1 or args.async_update:
         model.share_memory()
 
